@@ -1,7 +1,45 @@
 const $=id=>document.getElementById(id);
 const log=$('log'), status=$('status'), hint=$('hint');
 function add(who,text){const d=document.createElement('div');d.className='entry '+(who==='YOU'?'user':'jarvis');const b=document.createElement('b');b.textContent=who;const p=document.createElement('p');p.textContent=text;d.append(b,p);log.appendChild(d);log.scrollTop=log.scrollHeight;}
-function say(text){if(!('speechSynthesis'in window))return; speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=.94;u.pitch=.82;speechSynthesis.speak(u);}
+// Indian-accent speech output. Android uses the voice packs installed in
+// Settings > General management > Text-to-speech output.
+let availableVoices = [];
+function loadVoices(){
+  if (!('speechSynthesis' in window)) return;
+  availableVoices = speechSynthesis.getVoices() || [];
+}
+if ('speechSynthesis' in window) {
+  loadVoices();
+  speechSynthesis.addEventListener?.('voiceschanged', loadVoices);
+}
+function pickIndianVoice(text){
+  loadVoices();
+  const lang = /[\u0900-\u097F]/.test(text) ? 'hi-IN' : 'en-IN';
+  const exact = availableVoices.find(v => (v.lang || '').toLowerCase() === lang.toLowerCase());
+  if (exact) return exact;
+  const regional = availableVoices.find(v => (v.lang || '').toLowerCase().startsWith(lang.slice(0,2).toLowerCase()));
+  if (regional) return regional;
+  const india = availableVoices.find(v => /india|indian/i.test(v.name || ''));
+  return india || availableVoices.find(v => (v.lang || '').toLowerCase().startsWith('en')) || null;
+}
+function say(text){
+  if (!('speechSynthesis' in window)) {
+    hint.textContent = 'SPEECH OUTPUT NOT SUPPORTED // CHECK CHROME';
+    return;
+  }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voice = pickIndianVoice(text);
+  if (voice) { u.voice = voice; u.lang = voice.lang; }
+  else { u.lang = /[\u0900-\u097F]/.test(text) ? 'hi-IN' : 'en-IN'; }
+  u.rate = 0.92;
+  u.pitch = 0.88;
+  u.volume = 1;
+  u.onstart = () => { hint.textContent = 'JARVIS SPEAKING // INDIAN VOICE'; };
+  u.onend = () => { hint.textContent = 'TAP THE ARC REACTOR TO SPEAK'; };
+  u.onerror = () => { hint.textContent = 'VOICE ERROR // ENABLE GOOGLE TEXT-TO-SPEECH IN ANDROID SETTINGS'; };
+  speechSynthesis.speak(u);
+}
 function respond(text){const q=text.toLowerCase();let a;
 if(/^(hi|hello|hey)\b/.test(q))a='Hello. JARVIS is online and ready.';
 else if(q.includes('time'))a='The local time is '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'.';
